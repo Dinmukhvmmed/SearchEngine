@@ -17,9 +17,9 @@ spring:
 
 indexing-settings:
   sites:
-    - url: https://ipfran.ru/
-      name: ИПФ
-    - url: https://dombulgakova.ru/
-      name: ДомБулгакова
-    - url: https://skillbox.ru/
-      name: Skillbox
+    - url: http://www.playback.ru/
+      name: PlayBack
+#    - url: https://www.svetlovka.ru/
+#      name: Svetlovka
+    - url: http://radiomv.ru/
+      name: RadioMV

@@ -2,9 +2,10 @@ package searchengine.model;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
-public class Site {
+public class Site implements Comparable<Site> {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private int id;
@@ -71,5 +72,23 @@ public class Site {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Site site = (Site) o;
+        return Objects.equals(url, site.url);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(url);
+    }
+
+    @Override
+    public int compareTo(Site o) {
+        return this.getUrl().compareTo(o.getUrl());
     }
 }

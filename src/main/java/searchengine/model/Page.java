@@ -1,6 +1,7 @@
 package searchengine.model;
 
 import javax.persistence.*;
+import java.util.Objects;
 
 @Entity
 public class Page implements Comparable<Page> {
@@ -9,7 +10,7 @@ public class Page implements Comparable<Page> {
     private int id;
 
     @ManyToOne(cascade = CascadeType.MERGE)
-    @JoinColumn(name = "site_id", referencedColumnName = "id", insertable = false, updatable = false, nullable = false)
+    @JoinColumn(name = "site_id", referencedColumnName = "id")
     private Site site;
 
     @Column(columnDefinition = "TEXT", nullable = false)
@@ -62,17 +63,20 @@ public class Page implements Comparable<Page> {
     }
 
     @Override
-    public int compareTo(Page o) {
-        return this.getPath().compareTo(o.getPath());
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Page page = (Page) o;
+        return Objects.equals(site, page.site) && Objects.equals(path, page.path);
     }
 
     @Override
-    public String toString() {
-        return "Page{" +
-                "id=" + id +
-                ", site=" + site.getUrl() +
-                ", path='" + path + '\'' +
-                ", code=" + code +
-                '}';
+    public int hashCode() {
+        return Objects.hash(site, path);
+    }
+
+    @Override
+    public int compareTo(Page o) {
+        return this.getPath().compareTo(o.getPath());
     }
 }

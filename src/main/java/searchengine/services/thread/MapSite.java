@@ -1,4 +1,4 @@
-package searchengine.services;
+package searchengine.services.thread;
 
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
@@ -17,11 +17,12 @@ import java.util.concurrent.RecursiveTask;
 import static java.lang.Thread.sleep;
 
 public class MapSite extends RecursiveTask<Set<Page>> implements Comparable<MapSite> {
-    private Site site = new Site();
+    private Site site;
     private Page page = new Page();
     private static Set<Page> allPages = new TreeSet<>();
 
-    public MapSite(Page page) {
+    public MapSite(Site site, Page page) {
+        this.site = site;
         this.page = page;
     }
 
@@ -39,6 +40,7 @@ public class MapSite extends RecursiveTask<Set<Page>> implements Comparable<MapS
                     .userAgent("Mozilla/5.0 (Windows; U; WindowsNT 5.1; en-US; rv1.8.1.6) Gecko/20070725 Firefox/2.0.0.6")
                     .referrer("http://www.google.com")
                     .get();
+            page.setContent(document.toString());
             Elements elements = document.select("body").select("a");
             List<Page> childrenPages = new ArrayList<>();
 
@@ -46,6 +48,7 @@ public class MapSite extends RecursiveTask<Set<Page>> implements Comparable<MapS
                 String childUrl = element.absUrl("href");
                 Page newPage = new Page();
                 newPage.setPath(childUrl);
+                newPage.setSite(site);
                 newPage.setContent(document.toString());
                 newPage.setCode(200);
                 if (isCorrectAndUniqueUrl(newPage)) {
@@ -57,7 +60,7 @@ public class MapSite extends RecursiveTask<Set<Page>> implements Comparable<MapS
             List<MapSite> taskList = new ArrayList<>();
 
             for (Page childPage : childrenPages) {
-                MapSite task = new MapSite(childPage);
+                MapSite task = new MapSite(site, childPage);
                 task.fork();
                 taskList.add(task);
             }
@@ -74,14 +77,14 @@ public class MapSite extends RecursiveTask<Set<Page>> implements Comparable<MapS
 
     private void homeSiteToPage(Site site) {
         if (page.getPath() == null) {
+            page.setSite(site);
             page.setPath(site.getUrl());
             page.setCode(200);
-            page.setContent("-");
             allPages.add(page);
         }
     }
 
-    public boolean isCorrectAndUniqueUrl(Page examplePage) {
+    private boolean isCorrectAndUniqueUrl(Page examplePage) {
         boolean isTrueDomain = examplePage.getPath().contains(page.getPath());
         boolean isUnique = !allPages.contains(examplePage);
         boolean isNotInnerElement = !examplePage.getPath().contains("#");
