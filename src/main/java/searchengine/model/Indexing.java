@@ -1,6 +1,7 @@
 package searchengine.model;
 
 import javax.persistence.*;
+import java.util.Objects;
 
 @Entity
 public class Indexing {
@@ -49,5 +50,18 @@ public class Indexing {
 
     public void setRanking(float ranking) {
         this.ranking = ranking;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Indexing indexing = (Indexing) o;
+        return Objects.equals(page, indexing.page) && Objects.equals(lemma, indexing.lemma);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(page, lemma);
     }
 }

@@ -30,10 +30,7 @@ public class LemmasWorker {
         boolean isPredlog = morphology.getMorphInfo(word).toString().contains("ПРЕДЛ");
         boolean isChactica = morphology.getMorphInfo(word).toString().contains("ЧАСТ");
         boolean isSoiuz = morphology.getMorphInfo(word).toString().contains("СОЮЗ");
-        if (isPredlog || isChactica || isSoiuz) {
-            return false;
-        }
-        return true;
+        return !isPredlog && !isChactica && !isSoiuz;
     }
 
     public String[] cleanHtml(String html) {

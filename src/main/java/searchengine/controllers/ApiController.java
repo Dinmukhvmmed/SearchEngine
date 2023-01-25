@@ -13,7 +13,6 @@ public class ApiController {
 
     private final IndexingService indexingService;
 
-
     public ApiController(IndexingService indexingService) {
         this.indexingService = indexingService;
     }
@@ -54,5 +53,15 @@ public class ApiController {
         }
         return Map.of("result", false, "error", "Данная страница находится за пределами сайтов,\n" +
                 "указанных в конфигурационном файле");
+    }
+
+    @GetMapping("/search")
+    public Map<String, Object> searching(String query) {
+        if (!query.isBlank()) {
+            return Map.of("result", true,
+                    "count", indexingService.searchingAllSites(query).size(),
+                    "data", indexingService.searchingAllSites(query));
+        }
+        return Map.of("result", false, "error", "Задан пустой поисковый запрос");
     }
 }

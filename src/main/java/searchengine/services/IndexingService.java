@@ -24,6 +24,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class IndexingService {
@@ -132,12 +136,14 @@ public class IndexingService {
         MapSite mapSite = new MapSite(site);
         forkJoinPool.execute(mapSite);
         Set<Page> pages = mapSite.join();
+
         for (Page page : pages) {
             pageRepository.save(page);
             startLemmasWorker(page);
             site.setStatusTime(LocalDateTime.now());
             siteRepository.save(site);
         }
+
         site.setStatus(Status.INDEXED);
         siteRepository.save(site);
     }
@@ -159,13 +165,18 @@ public class IndexingService {
         newLemma.setSite(page.getSite());
         newLemma.setLemma(word);
         Iterable<Lemma> lemmaIterable = lemmaRepository.findAll();
+
         for (Lemma lemmaFromDB : lemmaIterable) {
             if (lemmaFromDB.equals(newLemma)) {
-                lemmaFromDB.setFrequency(lemmaFromDB.getFrequency() + 1);
-                lemmaRepository.save(lemmaFromDB);
+                if (lemmaFromDB.getFrequency() < pagesCount(lemmaFromDB.getSite())
+                        && lemmaFromDB.getSite().getStatus().equals(Status.INDEXING)) {
+                    lemmaFromDB.setFrequency(lemmaFromDB.getFrequency() + 1);
+                    lemmaRepository.save(lemmaFromDB);
+                }
                 return lemmaFromDB;
             }
         }
+
         newLemma.setFrequency(1);
         lemmaRepository.save(newLemma);
         return newLemma;
@@ -176,7 +187,9 @@ public class IndexingService {
         index.setPage(page);
         index.setLemma(lemma);
         index.setRanking(rank);
-        indexingRepository.save(index);
+        if (!index.getPage().getSite().getStatus().equals(Status.INDEXED)) {
+            indexingRepository.save(index);
+        }
     }
 
     public void stopService() {
@@ -209,7 +222,7 @@ public class IndexingService {
         sites.add(site);
 
         page.setCode(200);
-        page.setContent(getHtmlCode(page));
+        page.setContent(getHtmlCode(page).toString());
         pageRepository.save(page);
 
         startLemmasWorker(page);
@@ -227,6 +240,7 @@ public class IndexingService {
         Iterable<Site> siteIterator = siteRepository.findAll();
         for (Site siteFromDB : siteIterator) {
             if (siteFromDB.equals(newSite)) {
+                siteFromDB.setStatus(Status.INDEXING);
                 return siteFromDB;
             }
         }
@@ -235,6 +249,7 @@ public class IndexingService {
 
     private void cleanEntities(Site site, Page page) {
         if (site.getStatus().equals(Status.INDEXED)) {
+
             Iterable<Indexing> indexIterable = indexingRepository.findAll();
             for (Indexing indexFromDB : indexIterable) {
                 if (indexFromDB.getPage().getSite().equals(site)) {
@@ -249,11 +264,16 @@ public class IndexingService {
                 }
             }
 
-            pageRepository.delete(page);
+            Iterable<Page> pageIterable = pageRepository.findAll();
+            for (Page pageFromDB : pageIterable) {
+                if (pageFromDB.equals(page)) {
+                    pageRepository.delete(pageFromDB);
+                }
+            }
         }
     }
 
-    private String getHtmlCode(Page page) {
+    private Document getHtmlCode(Page page) {
         Connection connection = Jsoup.connect(page.getPath()).timeout(50000);
         Document document = null;
         try {
@@ -264,6 +284,118 @@ public class IndexingService {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return document.toString();
+        return document;
+    }
+
+    public List<Result> searchingOneSite(String text, Site site) {
+        List<Result> resultList = new ArrayList<>();
+        try {
+            Set<String> words = lemmasWorker.iterator(text).keySet();
+            Set<Lemma> lemmaSet = new TreeSet<>();
+
+            for (String searchLemma : words) {
+                Lemma lemma = new Lemma();
+                lemma.setLemma(searchLemma);
+                lemma.setSite(site);
+                excludeOftenLemmas(lemma, lemmaSet);
+            }
+
+            Set<Page> pageSet = searchPagesForLemma(lemmaSet);
+            HashMap<Page, Integer> absoluteRelevance = sumAbsoluteRelevance(pageSet, lemmaSet);
+            float maxAbsoluteRelevance = relevanceCoefficient(absoluteRelevance);
+
+            for (Map.Entry<Page, Integer> entry : absoluteRelevance.entrySet()) {
+                Result result = new Result();
+                Page page = entry.getKey();
+                result.setPage(page);
+                result.setAbsoluteRelevance(entry.getValue());
+                result.setRelevance(entry.getValue() / maxAbsoluteRelevance);
+                result.setLemmaSet(lemmaSet);
+                result.setPath(page.getPath());
+                result.setTitle(getHtmlCode(page).title());
+                result.setSnippet(searchSnippet(getHtmlCode(page), text));
+                resultList.add(result);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return resultList.stream().sorted(Comparator.comparing(Result::getRelevance).reversed()).toList();
+    }
+
+    private void excludeOftenLemmas(Lemma lemma, Set<Lemma> lemmaSet) {
+        Iterable<Lemma> lemmaIterable = lemmaRepository.findAll();
+        for (Lemma lemmaFromDB : lemmaIterable) {
+            if (lemmaFromDB.equals(lemma) && lemmaFromDB.getFrequency() < pagesCount(lemma.getSite()) / 3) {
+                lemmaSet.add(lemma);
+            }
+        }
+        lemmaSet.stream().sorted(Comparator.comparing(Lemma::getFrequency));
+    }
+
+    private Set<Page> searchPagesForLemma(Set<Lemma> lemmaSet) {
+        Set<Page> pagesSet = new TreeSet<>();
+        Iterable<Indexing> indexingIterable = indexingRepository.findAll();
+        for (Lemma lemma : lemmaSet) {
+            for (Indexing indexing : indexingIterable) {
+                if (indexing.getLemma().equals(lemma)) {
+                    pagesSet.add(indexing.getPage());
+                }
+            }
+        }
+        return pagesSet;
+    }
+
+    private HashMap<Page, Integer> sumAbsoluteRelevance(Set<Page> pageSet, Set<Lemma> lemmaSet) {
+        HashMap<Page, Integer> relevanceMap = new HashMap<>();
+        Iterable<Indexing> indexingIterable = indexingRepository.findAll();
+
+        for (Page page : pageSet) {
+            int absoluteRelevance = 0;
+            for (Lemma lemma : lemmaSet) {
+                for (Indexing indexing : indexingIterable) {
+                    if (indexing.getPage().equals(page) && indexing.getLemma().equals(lemma)) {
+                        absoluteRelevance += indexing.getRanking();
+                    }
+                }
+            }
+            relevanceMap.put(page, absoluteRelevance);
+        }
+        return relevanceMap;
+    }
+
+    private int relevanceCoefficient(HashMap<Page, Integer> sumAbsoluteRelevance) {
+        int i = 0;
+
+        for (Map.Entry<Page, Integer> entry : sumAbsoluteRelevance.entrySet()) {
+            if (entry.getValue() > i) {
+                i = entry.getValue();
+            }
+        }
+
+        return i;
+    }
+
+    private String searchSnippet(Document html, String text) {
+        StringBuilder stringBuilder = new StringBuilder();
+        String[] words = text.toLowerCase(Locale.ROOT).replaceAll("([^а-я\\s])", " ")
+                .trim().split("\\s+");
+        for (String word : words) {
+            String content = html.toString();
+            int start = content.indexOf(word) + word.length();
+            int end = content.indexOf(word.length() + 30, start);
+            stringBuilder.append(content.substring(start, end)).append("\n");
+        }
+        return stringBuilder.toString();
+    }
+
+    public List<Result> searchingAllSites(String text) {
+        List<Result> totalResult = new ArrayList<>();
+        Iterable<Site> siteIterable = siteRepository.findAll();
+        for (Site site : siteIterable) {
+            if (site.getStatus().equals(Status.INDEXED)) {
+                totalResult.addAll(searchingOneSite(text, site));
+            }
+        }
+        return totalResult.stream().sorted(Comparator.comparing(Result::getRelevance).reversed()).toList();
     }
 }
