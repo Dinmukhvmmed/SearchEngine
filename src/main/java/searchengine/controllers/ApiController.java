@@ -3,6 +3,7 @@ package searchengine.controllers;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import searchengine.dto.statistics.StatisticsResponse;
+import searchengine.model.Site;
 import searchengine.services.IndexingService;
 
 import java.util.Map;
@@ -56,7 +57,7 @@ public class ApiController {
     }
 
     @GetMapping("/search")
-    public Map<String, Object> searching(String query) {
+    public Map<String, Object> searching(String query, String site) {
         if (!query.isBlank()) {
             return Map.of("result", true,
                     "count", indexingService.searchingAllSites(query).size(),

@@ -7,15 +7,17 @@ import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import searchengine.config.SitesList;
+import searchengine.dto.result.DtoResult;
+import searchengine.dto.result.ResultMapper;
 import searchengine.dto.statistics.DetailedStatisticsItem;
 import searchengine.dto.statistics.StatisticsData;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.dto.statistics.TotalStatistics;
 import searchengine.model.*;
-import searchengine.model.repositories.IndexRepository;
-import searchengine.model.repositories.LemmaRepository;
-import searchengine.model.repositories.PageRepository;
-import searchengine.model.repositories.SiteRepository;
+import searchengine.repositories.IndexRepository;
+import searchengine.repositories.LemmaRepository;
+import searchengine.repositories.PageRepository;
+import searchengine.repositories.SiteRepository;
 import searchengine.services.lemmatization.LemmasWorker;
 import searchengine.services.thread.MapSite;
 
@@ -24,10 +26,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 public class IndexingService {
@@ -187,7 +185,7 @@ public class IndexingService {
         index.setPage(page);
         index.setLemma(lemma);
         index.setRanking(rank);
-        if (!index.getPage().getSite().getStatus().equals(Status.INDEXED)) {
+        if (index.getPage().getSite().getStatus().equals(Status.INDEXING)) {
             indexingRepository.save(index);
         }
     }
@@ -240,7 +238,6 @@ public class IndexingService {
         Iterable<Site> siteIterator = siteRepository.findAll();
         for (Site siteFromDB : siteIterator) {
             if (siteFromDB.equals(newSite)) {
-                siteFromDB.setStatus(Status.INDEXING);
                 return siteFromDB;
             }
         }
@@ -249,6 +246,7 @@ public class IndexingService {
 
     private void cleanEntities(Site site, Page page) {
         if (site.getStatus().equals(Status.INDEXED)) {
+            site.setStatus(Status.INDEXING);
 
             Iterable<Indexing> indexIterable = indexingRepository.findAll();
             for (Indexing indexFromDB : indexIterable) {
@@ -287,7 +285,7 @@ public class IndexingService {
         return document;
     }
 
-    public List<Result> searchingOneSite(String text, Site site) {
+    public List<DtoResult> searchingOneSite(String text, Site site) {
         List<Result> resultList = new ArrayList<>();
         try {
             Set<String> words = lemmasWorker.iterator(text).keySet();
@@ -319,7 +317,7 @@ public class IndexingService {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return resultList.stream().sorted(Comparator.comparing(Result::getRelevance).reversed()).toList();
+        return transfer(resultList);
     }
 
     private void excludeOftenLemmas(Lemma lemma, Set<Lemma> lemmaSet) {
@@ -388,14 +386,22 @@ public class IndexingService {
         return stringBuilder.toString();
     }
 
-    public List<Result> searchingAllSites(String text) {
-        List<Result> totalResult = new ArrayList<>();
+    private List<DtoResult> transfer(List<Result> resultList) {
+        List<DtoResult> dtoResultsList = new ArrayList<>();
+        for (Result result : resultList) {
+            dtoResultsList.add(ResultMapper.dtoResult(result));
+        }
+        return dtoResultsList.stream().sorted(Comparator.comparing(DtoResult::getRelevance).reversed()).toList();
+    }
+
+    public List<DtoResult> searchingAllSites(String text) {
+        List<DtoResult> totalResult = new ArrayList<>();
         Iterable<Site> siteIterable = siteRepository.findAll();
         for (Site site : siteIterable) {
             if (site.getStatus().equals(Status.INDEXED)) {
                 totalResult.addAll(searchingOneSite(text, site));
             }
         }
-        return totalResult.stream().sorted(Comparator.comparing(Result::getRelevance).reversed()).toList();
+        return totalResult.stream().sorted(Comparator.comparing(DtoResult::getRelevance).reversed()).toList();
     }
 }
