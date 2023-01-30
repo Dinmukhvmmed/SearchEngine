@@ -378,10 +378,11 @@ public class IndexingService {
         String[] words = text.toLowerCase(Locale.ROOT).replaceAll("([^а-я\\s])", " ")
                 .trim().split("\\s+");
         for (String word : words) {
-            String content = html.toString();
-            int start = content.indexOf(word) + word.length();
-            int end = content.indexOf(word.length() + 30, start);
-            stringBuilder.append(content.substring(start, end)).append("\n");
+            String content = html.toString().toLowerCase(Locale.ROOT).replaceAll("([^а-я\\s])", " ");
+            int start = content.indexOf(word);
+            if (start != -1) {
+                stringBuilder.append(content.substring(start, start + 40)).append("... \n");
+            }
         }
         return stringBuilder.toString();
     }
