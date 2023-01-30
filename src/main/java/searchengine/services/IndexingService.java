@@ -23,7 +23,9 @@ import searchengine.services.thread.MapSite;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
 
@@ -55,6 +57,7 @@ public class IndexingService {
         total.setSites(Iterables.size(siteIterable));
         total.setIndexing(true);
 
+
         for (Site site : siteIterable) {
             DetailedStatisticsItem item = new DetailedStatisticsItem();
             item.setName(site.getName());
@@ -65,7 +68,8 @@ public class IndexingService {
             item.setLemmas(lemmas);
             item.setStatus(String.valueOf(site.getStatus()));
             item.setError(site.getLastError());
-            item.setStatusTime(site.getStatusTime().toEpochSecond(ZoneOffset.ofHours(3)));
+            ZonedDateTime zonedDateTime = ZonedDateTime.of(site.getStatusTime(), ZoneId.systemDefault());
+            item.setStatusTime(zonedDateTime.toInstant().toEpochMilli());
             total.setPages(total.getPages() + pages);
             total.setLemmas(total.getLemmas() + lemmas);
             detailed.add(item);
