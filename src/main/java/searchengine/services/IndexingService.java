@@ -57,6 +57,7 @@ public class IndexingService {
         total.setSites(Iterables.size(siteIterable));
         total.setIndexing(true);
 
+
         for (Site site : siteIterable) {
             DetailedStatisticsItem item = new DetailedStatisticsItem();
             item.setName(site.getName());
