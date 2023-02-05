@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.services.IndexingService;
+import searchengine.services.SearchService;
 
 import java.util.Map;
 
@@ -12,9 +13,11 @@ import java.util.Map;
 public class ApiController {
 
     private final IndexingService indexingService;
+    private final SearchService searchService;
 
-    public ApiController(IndexingService indexingService) {
+    public ApiController(IndexingService indexingService, SearchService searchService) {
         this.indexingService = indexingService;
+        this.searchService = searchService;
     }
 
     @GetMapping("/statistics")
@@ -22,7 +25,7 @@ public class ApiController {
         return ResponseEntity.ok(indexingService.getStatistics());
     }
 
-    @DeleteMapping("/startIndexing")
+    @DeleteMapping("/deleteIndexing")
     public void deleteAll() {
         indexingService.delete();
     }
@@ -59,8 +62,8 @@ public class ApiController {
     public Map<String, Object> searching(String query, String site) {
         if (!query.isBlank()) {
             return Map.of("result", true,
-                    "count", indexingService.searchingAllSites(query).size(),
-                    "data", indexingService.searchingAllSites(query));
+                    "count", searchService.searchingAllSites(query).size(),
+                    "data", searchService.searchingAllSites(query));
         }
         return Map.of("result", false, "error", "Задан пустой поисковый запрос");
     }
