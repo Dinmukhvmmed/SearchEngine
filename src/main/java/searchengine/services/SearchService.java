@@ -25,8 +25,10 @@ public class SearchService {
     @Autowired
     IndexRepository indexingRepository;
 
+    @Autowired
     IndexingService indexingService;
-    LemmasWorker lemmasWorker;
+
+    LemmasWorker lemmasWorker = new LemmasWorker();
 
     public List<DtoResult> searchingOneSite(String text, Site site) {
         List<Result> resultList = new ArrayList<>();
